@@ -1,0 +1,33 @@
+~~~~~~~~~~~~~~~~~~~~~~~~~
+~USING THE String OBJECT~ 10 bytes/word
+~~~~~~~~~~~~~~~~~~~~~~~~~
+| 5 words in word bank |
+
+Sketch uses 7400 bytes (2%) of program storage space. Maximum is 253952 bytes.
+
+Global variables use 498 bytes (6%) of dynamic memory, leaving 7694 bytes for local variables. Maximum is 8192 bytes.
+
+
+| 6 words in word bank |
+
+Sketch uses 7416 bytes (2%) of program storage space. Maximum is 253952 bytes.
+
+Global variables use 508 bytes (6%) of dynamic memory, leaving 7684 bytes for local variables. Maximum is 8192 bytes.
+
+| 500 words in word bank |
+Sketch uses 15696 bytes (6%) of program storage space. Maximum is 253952 bytes.
+
+Global variables use 5941 bytes (72%) of dynamic memory, leaving 2251 bytes for local variables. Maximum is 8192 bytes.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~USING AN ARRAY OF char POINTERS~ 7 bytes/word
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+| 500 words in word bank |
+Sketch uses 9986 bytes (3%) of program storage space. Maximum is 253952 bytes.
+
+Global variables use 3941 bytes (48%) of dynamic memory, leaving 4251 bytes for local variables. Maximum is 8192 bytes.
+
+| 0 words in word bank |
+Sketch uses 6464 bytes (2%) of program storage space. Maximum is 253952 bytes.
+
+Global variables use 441 bytes (5%) of dynamic memory, leaving 7751 bytes for local variables. Maximum is 8192 bytes.
