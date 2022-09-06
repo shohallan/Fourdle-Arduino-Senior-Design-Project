@@ -37,6 +37,10 @@ Fourdle Main Code
                             If its a 3V Arduino such as a Due, connect it to 3V
 */
 
+// MACROS //
+#define CARDKB_ADDR 0x5F
+#define DISP14SEG_ADDR 0x70
+
 // VARIABLES //
 // Used for 14-segment LED display
 Adafruit_AlphaNum4 alpha4 = Adafruit_AlphaNum4();
@@ -81,14 +85,15 @@ byte romValue;
 void setup() {
   Serial.begin(9600);
   
-  alpha4.begin(0x70);  // pass in the address
+  // --Test setting up and displaying all segments of 14-seg display-- //
+  alpha4.begin(DISP14SEG_ADDR);  // pass in the address for the 14-seg display
   
-  // alpha4.writeDigitRaw(0, 0xFFFF);
-  // alpha4.writeDigitRaw(1, 0xFFFF);
-  // alpha4.writeDigitRaw(2, 0xFFFF);
-  // alpha4.writeDigitRaw(3, 0xFFFF);
+  alpha4.writeDigitRaw(0, 0xFFFF);
+  alpha4.writeDigitRaw(1, 0xFFFF);
+  alpha4.writeDigitRaw(2, 0xFFFF);
+  alpha4.writeDigitRaw(3, 0xFFFF);
   
-  // alpha4.writeDisplay();
+  alpha4.writeDisplay();
   
   // --Test storing data into EEPROM-- //
   // Reading a value from EEPROM
@@ -136,11 +141,21 @@ void loop() {
   
   Serial.print(randNum); Serial.print(": ");
   
+  // Print to 14-seg display
+  alpha4.writeDigitAscii(0, wordBuffer[0]);
+  alpha4.writeDigitAscii(1, wordBuffer[1]);
+  alpha4.writeDigitAscii(2, wordBuffer[2]);
+  alpha4.writeDigitAscii(3, wordBuffer[3]);
+  alpha4.writeDisplay();
+  
   Serial.print(wordBuffer); // print out a random word from the word bank
   Serial.println();
-  delay(10);
-  //LowPower.powerSave(SLEEP_1S, ADC_OFF, BOD_OFF, TIMER2_OFF);
-  LowPower.idle(SLEEP_1S, ADC_OFF, TIMER5_OFF, TIMER4_OFF,  TIMER3_OFF,  TIMER2_OFF, TIMER1_OFF, TIMER0_OFF, 
-      SPI_OFF, USART3_OFF, USART2_OFF, USART1_OFF, USART0_OFF, TWI_ON);
-  delay(2);
+  
+  
+  delay(1000);
+  // delay(10);
+  // //LowPower.powerSave(SLEEP_1S, ADC_OFF, BOD_OFF, TIMER2_OFF);
+  // LowPower.idle(SLEEP_1S, ADC_OFF, TIMER5_OFF, TIMER4_OFF,  TIMER3_OFF,  TIMER2_OFF, TIMER1_OFF, TIMER0_OFF, 
+  //     SPI_OFF, USART3_OFF, USART2_OFF, USART1_OFF, USART0_OFF, TWI_ON);
+  // delay(2);
 }
