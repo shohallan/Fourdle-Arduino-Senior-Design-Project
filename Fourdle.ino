@@ -46,7 +46,10 @@ Fourdle Main Code
 Adafruit_AlphaNum4 alpha4 = Adafruit_AlphaNum4();
 
 // Used for transfering words stored in flash (word bank) to RAM
-char wordBuffer[10];
+char wordBuffer[10] = "          ";
+
+// Letter incrementor - Keeps track of which letter is currently being typed
+byte digitLoc;
 
 // Word Bank //
 #define BANK_SIZE 500
@@ -85,6 +88,8 @@ byte romValue;
 void setup() {
   Serial.begin(9600);
   
+  Wire.begin();
+  
   // --Test setting up and displaying all segments of 14-seg display-- //
   alpha4.begin(DISP14SEG_ADDR);  // pass in the address for the 14-seg display
   
@@ -100,6 +105,8 @@ void setup() {
   // EEPROM.read(address) [address is an integer value starting from 0] [returns a byte]
   
   //EEPROM.update(0, 2); // updates the value of the EEPROM location [update(address, data)]
+  
+  digitLoc = 0;
   
   while(addr < 10){
     romValue = EEPROM.read(addr);
@@ -135,11 +142,11 @@ void loop() {
   // LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
   // Serial.println("Awake!");
   
-  // Random word generator test //
-  int randNum = random(BANK_SIZE);
-  strcpy_P(wordBuffer, (PGM_P)pgm_read_word(&(wordBank[randNum])));
+  // --Random word generator test-- //
+  //int randNum = random(BANK_SIZE);
+  //strcpy_P(wordBuffer, (PGM_P)pgm_read_word(&(wordBank[randNum])));
   
-  Serial.print(randNum); Serial.print(": ");
+  //Serial.print(randNum); Serial.print(": ");
   
   // Print to 14-seg display
   alpha4.writeDigitAscii(0, wordBuffer[0]);
@@ -148,14 +155,38 @@ void loop() {
   alpha4.writeDigitAscii(3, wordBuffer[3]);
   alpha4.writeDisplay();
   
-  Serial.print(wordBuffer); // print out a random word from the word bank
-  Serial.println();
+  //Serial.print(wordBuffer); // print out a random word from the word bank
+  //Serial.println();
+  
+  // --Power Management Test-- //
+  //delay(1000);
+  //delay(10);
+  //LowPower.powerSave(SLEEP_1S, ADC_OFF, BOD_OFF, TIMER2_OFF);
+  //LowPower.powerDown(SLEEP_1S, ADC_OFF, BOD_OFF);
+  //LowPower.idle(SLEEP_1S, ADC_OFF, TIMER5_OFF, TIMER4_OFF,  TIMER3_OFF,  TIMER2_OFF, TIMER1_OFF, TIMER0_OFF, 
+  //    SPI_OFF, USART3_OFF, USART2_OFF, USART1_OFF, USART0_OFF, TWI_ON);
+  //delay(2);
+  
+  // --Keyboard Test-- //
   
   
-  delay(1000);
-  // delay(10);
-  // //LowPower.powerSave(SLEEP_1S, ADC_OFF, BOD_OFF, TIMER2_OFF);
-  // LowPower.idle(SLEEP_1S, ADC_OFF, TIMER5_OFF, TIMER4_OFF,  TIMER3_OFF,  TIMER2_OFF, TIMER1_OFF, TIMER0_OFF, 
-  //     SPI_OFF, USART3_OFF, USART2_OFF, USART1_OFF, USART0_OFF, TWI_ON);
-  // delay(2);
+  Wire.requestFrom(CARDKB_ADDR, 1);
+  while (Wire.available()){
+    byte key = Wire.read();
+
+    if (key != 0){ // If the keyboard is being pressed...
+      if (key > 0x7F){
+        Serial.print(key, HEX);
+      }
+      else{
+        Serial.print((char)key);
+        if(key == 0x7F && digitLoc > 0){      // If key is a backspace character and the digit location is >0
+          wordBuffer[digitLoc-- - 1] = ' ';   // Delete (replace with whitespace) the previous digit location then decrement the digit location
+        }
+        else if(key != 0x7F && digitLoc < 4){ // Else if not a backspace character and the digit location is <4
+          wordBuffer[digitLoc++] = (char)key; // Add the inputted character into the curren digit location then increment the digit location
+        }
+      }
+    }
+  }
 }
