@@ -6,8 +6,8 @@
 #include <avr/sleep.h>
 
 // Low-Power library by rocketscream for ease of use when changing power modes
-// https://github.com/rocketscream/Low-Power
-#include "LowPower.h"
+// https://github.com/rocketscream/RocketScream_LowPowerAVRZero
+#include "RocketScream_LowPowerAVRZero.h"
 
 // Arduino library to use EEPROM
 #include <EEPROM.h>
@@ -23,6 +23,12 @@
 
 // Includes word bank data
 #include "WordBank.h"
+
+// Includes FastLED library
+#include <FastLED.h>
+
+// Includes various led pixel types for the 4x4 leds
+#include <pixeltypes.h>
 
 /*
   ~Wiring the 14-segment LED backpack~
@@ -40,6 +46,23 @@
 // MACROS //
 #define CARDKB_ADDR 0x5F
 #define DISP14SEG_ADDR 0x70
+#define LED_PIN 2
+#define NUM_LEDS 16
+
+//LED colors
+#define RED_C CRGB(50, 0, 0)
+#define GREEN_C CRGB(0, 50, 0)
+#define YELLOW_C CRGB(50, 50, 0)
+#define WHITE_C CRGB(50, 50, 50)
+
+//EEPROM Macros
+#define INPUT(_x_) _x_
+#define WORD_PREV0(_x_) 238+_x_
+#define WORD_PREV1(_x_) 242+_x_
+#define WORD_PREV2(_x_) 246+_x_
+#define WORD_RAND(_x_) 250+_x_
+#define WIN_STREAK 254
+#define INPUT_SHIFT 255
 
 // VARIABLES //
 // Used for 14-segment LED display
@@ -60,7 +83,7 @@ const char * const PROGMEM wordBank[BANK_SIZE] = {
   ABLE, ACID, AGED, ALSO, AREA, ARMY, AWAY,
   BABY, BACK, BALL, BAND, BANK, BASE, BATH, BEAR, BEAT, BEEN, BEER, BELL, BELT, BEST, BILL, BIRD, BLOW, BLUE, BOAT, BODY, BOMB, BOND, BONE, BOOK, BOOM, BORN, BOSS, BOTH, BOWL, BULK, BURN, BUSH, BUSY,
   CALL, CALM, CAME, CAMP, CARD, CARE, CASE, CASH, CAST, CELL, CHAT, CHIP, CITY, CLUB, COAL, COAT, CODE, COLD, COME, COOK, COOL, COPE, COPY, CORE, COST, CREW, CROP,
-  DARK, DATA, DATE, DAWN, DAYS, DEAD, DEAL, DEAN, DEAR, DEBT, DEEP, DENY, DESK, DIAL, DICK, DIET, DISC, DISK, DOES, DONE, DOOR, DOSE, DOWN, DRAW, DREW, DROP, DRUG, DUAL, DUKE, DUST, DUTY,
+  DARK, DATA, DATE, DAWN, DAYS, DEAD, DEAL, DEAN, DEAR, DEBT, DEEP, DENY, DESK, DIAL, DICK, DIET, DISC, DISK, DOES, DOOM, DOOR, DOSE, DOWN, DRAW, DREW, DROP, DRUG, DUAL, DUKE, DUST, DUTY,
   EACH, EARN, EASE, EAST, EASY, EDGE, ELSE, EVEN, EVER, EVIL, EXIT,
   FACE, FACT, FAIL, FAIR, FALL, FARM, FAST, FATE, FEAR, FEED, FEEL, FEET, FELL, FELT, FIGS, FILL, FILM, FIND, FINE, FIRE, FIRM, FISH, FIVE, FLAT, FLOW, FOOD, FOOT, FORD, FORM, FORT, FOUR, FREE, FROM, FUEL, FULL, FUND,
   GAIN, GAME, GATE, GAVE, GEAR, GENE, GIFT, GIRL, GIVE, GLAD, GOAL, GOES, GOLD, GOLF, GONE, GOOD, GRAY, GREW, GREY, GROW, GULF,
@@ -89,6 +112,8 @@ struct LetterInfo {
   byte times = 0;
 };
 
+// Define 4x4 LEDs
+CRGB leds4x4[NUM_LEDS];
 
 // Used for EEPROM testing
 int addr = 0;
@@ -97,6 +122,11 @@ byte romValue;
 void setup() {
   Serial.begin(9600);
 
+  FastLED.addLeds<WS2812, LED_PIN, RGB>(leds4x4, NUM_LEDS);
+  FastLED.setMaxPowerInVoltsAndMilliamps(5, 50);
+  FastLED.clear();
+  FastLED.show();
+  
   Wire.begin();
 
   // --Test setting up and displaying all segments of 14-seg display-- //
@@ -108,7 +138,11 @@ void setup() {
   alpha4.writeDigitRaw(3, 0xFFFF);
 
   alpha4.writeDisplay();
-
+  
+  for (uint8_t i = 0; i < NUM_LEDS; i++) leds4x4[i] = WHITE_C;
+  FastLED.setBrightness(5);
+  FastLED.show();
+  
   digitLoc = 0;
 
   // --Test storing data into EEPROM-- //
@@ -116,16 +150,17 @@ void setup() {
   // EEPROM.read(address) [address is an integer value starting from 0] [returns a byte]
 
   //EEPROM.update(0, 2); // updates the value of the EEPROM location [update(address, data)]
-
-  // while(addr < 10){
-  //   romValue = EEPROM.read(addr);
-  //   Serial.print(addr);
-  //   Serial.print(": ");
-  //   Serial.print(romValue);
-  //   Serial.println();
-  //   addr += 1;
-  // }
-  // delay(100);
+  
+  addr = 0;
+  while(addr < EEPROM.length()){
+    romValue = EEPROM[addr];
+    Serial.print(addr);
+    Serial.print(": ");
+    Serial.print(romValue);
+    Serial.println();
+    addr += 1;
+  }
+  delay(100);
 
   randomSeed(analogRead(2)); // randomize using noise from analog pin 2
 

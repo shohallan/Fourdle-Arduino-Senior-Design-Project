@@ -1,3 +1,6 @@
+#ifndef WordBank_h
+#define WordBank_h
+
 // MACROS //
 #define Store_Flash(_x_) extern const char _x_[] PROGMEM = (#_x_)
 
@@ -87,7 +90,7 @@ Store_Flash(DIET);
 Store_Flash(DISC);
 Store_Flash(DISK);
 Store_Flash(DOES);
-Store_Flash(DONE);
+Store_Flash(DOOM);
 Store_Flash(DOOR);
 Store_Flash(DOSE);
 Store_Flash(DOWN);
@@ -501,3 +504,5 @@ Store_Flash(YEAR);
 Store_Flash(YOUR);
 Store_Flash(ZERO);
 Store_Flash(ZONE);
+
+#endif
