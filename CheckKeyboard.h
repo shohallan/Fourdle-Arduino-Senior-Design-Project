@@ -5,9 +5,9 @@
 #include <Wire.h>
 
 char checkKeyboard(uint8_t Address){
-  Wire.requestFrom(Address, (size_t)1); // Request an input from the keyboard
+  Wire.requestFrom((int)Address, 1); // Request an input from the keyboard
   while (Wire.available()) {
-    char key = Wire.read();
+    byte key = Wire.read();
     if (key != 0) { // If a key on the keyboard is pressed...
     // And the key is an uppercase alphabetical...
       if(key >= 'A' && key <= 'Z')
