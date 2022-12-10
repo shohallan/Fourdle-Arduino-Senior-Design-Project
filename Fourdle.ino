@@ -2,6 +2,8 @@
   Fourdle Main Code
 */
 
+//#define DEBUG_PRINT_EEPROM
+
 // AVR library to use the sleep modes on the Atmega 2560
 #include <avr/sleep.h>
 
@@ -297,8 +299,6 @@ bool isGuessCorrect(byte guessNum){
   
   // Second Pass: Which letters are in the word but are out of place?
   for (byte i = 0; i < 4; i++) {
-    // char * tempAddr = strchr(randWord, wordBuffer[i]);
-    
     if(userLetInfo[i].flag == 'G') continue;
     for(byte let = 0; let < 4; let++){
       if(userLetInfo[i].letter == randLetInfo[let].letter){
@@ -311,16 +311,6 @@ bool isGuessCorrect(byte guessNum){
         }
       }
     }
-    
-    // if (tempAddr != NULL) { // If the letter is in the random word...
-    //   byte loc = tempAddr - randWord; // Offset tempAddr so it's in a range 0-3 inclusive...
-    //   if (userLetInfo[loc].flag != 'G' && randLetInfo[loc].flag != 'Y') {
-    //     wordBuffer[i] = '/'; 
-    //     leds4x4[4*guessNum + i] = YELLOW_C;
-    //     userLetInfo[i].flag = 'Y';
-    //     randLetInfo[loc].flag = 'Y';
-    //   }
-    // }
   }
   // Third pass: Which letters are not in the word?
   for (byte i = 0; i < 4; i++) {
@@ -374,8 +364,9 @@ void setup() {
 
   // EEPROM.update(INPUT_SHIFT, 0); // Initialize INPUT_SHIFT value
 
-  delay(100);
+  //delay(100);
 
+#ifdef DEBUG_PRINT_EEPROM
   // Prints all values in the Nano Every's EEPROM
   prints("Printing EEPROM data...\n");
   addr = 0;
@@ -392,10 +383,11 @@ void setup() {
   }
   prints("...done\n\n");
   //delay(1000);
+#endif
 
   randomSeed(analogRead(2)); // randomize using noise from analog pin 2
 
-  delay(200);
+  //delay(200);
 
   // Plays begin setup sound
   playSound(SPEAKER_PIN, 986, 50);
@@ -565,7 +557,7 @@ void loop() {
     
     storeRandWord(); // Store new random word into EEPROM
     
-    delay(1000);
+    //delay(1000);
 
     GameState = GAME_INPUT_GUESS1;
     prints("First Guess...\n");
