@@ -231,11 +231,28 @@ void loadRandWord(char * getRand) {
 // Stores the current game state from SRAM into EEPROM.
 void storeGameState(void) {
   EEPROM.update(GAME_STATE, (byte)GameState);
+  delay(4);
 }
 
 // Loads the current game state from EEPROM into SRAM.
 void loadGameState(void) {
   GameState = /*(enum gameState)*/EEPROM[GAME_STATE];
+}
+
+// Loads input data and sets digitLoc parameter to correct location
+void loadInputData(byte * digitLoc) {
+  wordBuffer[0] = EEPROM[getInputLoc(0)];
+  wordBuffer[1] = EEPROM[getInputLoc(1)];
+  wordBuffer[2] = EEPROM[getInputLoc(2)];
+  wordBuffer[3] = EEPROM[getInputLoc(3)];
+  *digitLoc = 0;
+  for(byte i = 0; i < 4; i++){
+    if(wordBuffer[i] != ' '){
+      (*digitLoc)++;
+    } else return;
+  }
+  //prints("digitLoc should be 4\n");
+  return;
 }
 
 void playSound(uint8_t pin, uint16_t pitch, uint16_t length) {
@@ -256,6 +273,8 @@ bool isGuessCorrect(byte guessNum){
   for (byte i = 0; i < 4; i++){
     userLetInfo[i].letter = wordBuffer[i];
     userLetInfo[i].flag = '-';
+    randLetInfo[i].letter = randWord[i];
+    randLetInfo[i].flag = '-';
   } 
   // First Pass: Which letters are correct?
   for (byte i = 0; i < 4; i++) {
@@ -278,19 +297,34 @@ bool isGuessCorrect(byte guessNum){
   
   // Second Pass: Which letters are in the word but are out of place?
   for (byte i = 0; i < 4; i++) {
-    char * tempAddr = strchr(randWord, wordBuffer[i]);
-    if (tempAddr != NULL) { // If the letter is in the random word...
-      byte loc = tempAddr - randWord; // Offset tempAddr so it's in a range 0-3 inclusive...
-      if (userLetInfo[loc].flag != 'G' && userLetInfo[loc].flag != 'Y') {
-        wordBuffer[i] = '/'; 
-        leds4x4[4*guessNum + i] = YELLOW_C;
-        userLetInfo[i].flag = 'Y';
+    // char * tempAddr = strchr(randWord, wordBuffer[i]);
+    
+    if(userLetInfo[i].flag == 'G') continue;
+    for(byte let = 0; let < 4; let++){
+      if(userLetInfo[i].letter == randLetInfo[let].letter){
+        if(userLetInfo[let].flag != 'G' && randLetInfo[let].flag != 'Y'){
+          wordBuffer[i] = '/'; 
+          leds4x4[4*guessNum + i] = YELLOW_C;
+          userLetInfo[i].flag = 'Y';
+          randLetInfo[let].flag = 'Y';
+          break;
+        }
       }
     }
+    
+    // if (tempAddr != NULL) { // If the letter is in the random word...
+    //   byte loc = tempAddr - randWord; // Offset tempAddr so it's in a range 0-3 inclusive...
+    //   if (userLetInfo[loc].flag != 'G' && randLetInfo[loc].flag != 'Y') {
+    //     wordBuffer[i] = '/'; 
+    //     leds4x4[4*guessNum + i] = YELLOW_C;
+    //     userLetInfo[i].flag = 'Y';
+    //     randLetInfo[loc].flag = 'Y';
+    //   }
+    // }
   }
   // Third pass: Which letters are not in the word?
   for (byte i = 0; i < 4; i++) {
-    if (wordBuffer[i] != '+' && wordBuffer[i] != '/') {
+    if (userLetInfo[i].flag != 'G' && userLetInfo[i].flag != 'Y') {
       wordBuffer[i] = '-'; 
       leds4x4[4*guessNum + i] = BLACK_C;
     }
@@ -301,12 +335,15 @@ bool isGuessCorrect(byte guessNum){
   return false;
 }
 
+void updateWordDisplay(void){
+  for (size_t let = 0; let < 4; let++)
+        alpha4.writeDigitAscii(let, wordBuffer[let]);
+  alpha4.writeDisplay();
+}
+
 // ~~ MAIN CODE ~~ //
 void setup() {
   Serial.begin(9600);
-
-  // Initialize the input shift ammount to the stored value in EEPROM
-  inputShift = (uint8_t)EEPROM[INPUT_SHIFT];
 
   FastLED.addLeds<WS2812, LED_PIN, RGB>(leds4x4, NUM_LEDS);
   FastLED.setMaxPowerInVoltsAndMilliamps(3, 50);
@@ -335,90 +372,79 @@ void setup() {
 
   digitLoc = 0;
 
-  // --Test storing data into EEPROM-- //
-  // Reading a value from EEPROM
-  // EEPROM.read(address) [address is an integer value starting from 0] [returns a byte]
-
-  //EEPROM.update(0, 2); // updates the value of the EEPROM location [update(address, data)]
   // EEPROM.update(INPUT_SHIFT, 0); // Initialize INPUT_SHIFT value
-  // EEPROM.update(0, 0); // Initialize letter input location
-  // EEPROM.update(1, 1);
-  // EEPROM.update(2, 2);
-  // EEPROM.update(3, 3);
-  // EEPROM.update(4, 4);
-  // EEPROM.update(5, 5);
-  // EEPROM.update(6, 6);
-  // EEPROM.update(7, 7);
+
   delay(100);
 
   // Prints all values in the Nano Every's EEPROM
   prints("Printing EEPROM data...\n");
   addr = 0;
   while (addr < EEPROM.length()) {
-    //romValue = EEPROM[addr];
     prints(addr); prints('-'); prints(addr + 3); prints(": ");
-    // prints('~');
-    // prints(addr); prints("~\t~"); prints(addr+1); prints("~\t~");
-    // prints(addr+2); prints("~\t~"); prints(addr+3); Serial.println('~');
     for (size_t i = 0; i < 4; i++) {
+      // if(addr >= 0 && addr < 236) EEPROM.update(addr + i, ' '); // Clears input data to spaces
       if (addr >= 252) prints((byte)EEPROM[addr + i]);
       else prints((char)EEPROM[addr + i]);
       prints(' ');
     }
-    prints("\n\n");
+    prints("\n");
     addr += 4;
   }
   prints("...done\n\n");
   //delay(1000);
 
-  // Print values stored in letter input location 1
-  Serial.println("Printing value in letter input shift EEPROM location 1:");
-  Serial.print(EEPROM[getInputLoc(0)]);
-  Serial.print(EEPROM[getInputLoc(1)]);
-  Serial.print(EEPROM[getInputLoc(2)]);
-  Serial.println(EEPROM[getInputLoc(3)]);
-
-  // Print values stored in letter input location 2
-  Serial.println("Printing value in letter input shift EEPROM location 2:");
-  //incrInputLoc();
-  inputShift++;
-  Serial.print(EEPROM[getInputLoc(0)]);
-  Serial.print(EEPROM[getInputLoc(1)]);
-  Serial.print(EEPROM[getInputLoc(2)]);
-  Serial.println(EEPROM[getInputLoc(3)]);
-
   randomSeed(analogRead(2)); // randomize using noise from analog pin 2
 
-  // --Random word generator test-- //
-  // prints("Generating random word...\n");
-  // int randNum = random(BANK_SIZE);
-  // strcpy_P(randWord, (PGM_P)pgm_read_word(&(wordBank[randNum])));
-  // prints("Word Bank Location "); Serial.print(randNum); Serial.print(": ");
-  // Serial.println(randWord); // print out a random word from the word bank
-  //storeRandWord();
-
-  // Print random word stored in EEPROM
-  Serial.println("Random word in EEPROM:");
-  char tempRandomWord[5];
-  loadRandWord(tempRandomWord);
-  Serial.println(tempRandomWord);
-
-  delay(150);
+  delay(200);
 
   // Plays begin setup sound
   playSound(SPEAKER_PIN, 986, 50);
   playSound(SPEAKER_PIN, 1098, 50);
 
+  /////////////////////////////////////
+  // LOAD EEPROM DATA FOR SAVESTATES //
+  /////////////////////////////////////
   //DEBUG: Store previous words in EEPROM
   //storePrevWord();
   // Load the previous words from EEPROM
   loadPrevWord();
+  
+
+  // Print and load random word stored in EEPROM
+  Serial.println("Random word in EEPROM:");
+  char tempRandomWord[5];
+  loadRandWord(tempRandomWord);
+  loadRandWord();
+  Serial.println(tempRandomWord);
+
+  // Initialize the input shift ammount to the stored value in EEPROM
+  inputShift = (uint8_t)EEPROM[INPUT_SHIFT];
 
   // Load the previous game state to return back to where the player left off
-  //loadGameState();
+  loadGameState();
   // DEBUG: Set game state to Start screen
-  GameState = GAME_START_SCREEN;
+  // GameState = GAME_START_SCREEN;
+  
+  // Reload correct LED indicator values 
+  switch(GameState){
+    case GAME_INPUT_GUESS4:
+      for (byte i = 0; i < 4; i++) wordBuffer[i] = prevWord[2][i];
+      isGuessCorrect(2);
 
+    case GAME_INPUT_GUESS3:
+      for (byte i = 0; i < 4; i++) wordBuffer[i] = prevWord[1][i];
+      isGuessCorrect(1);
+
+    case GAME_INPUT_GUESS2:
+      for (byte i = 0; i < 4; i++) wordBuffer[i] = prevWord[0][i];
+      isGuessCorrect(0);
+      FastLED.show();
+      break;
+  }
+
+  // Load player input data and change digitLoc accordingly
+  loadInputData(&digitLoc);
+  
   // Starts real time counter using the internal counter
   RTCAVRZero.begin(false);
 
@@ -475,9 +501,13 @@ void loop() {
   // MAIN FINITE STATE MACHINE FOR GAME LOGIC //
   //------------------------------------------//
   if (GameState == GAME_START_SCREEN) {
-    // storeGameState();
+    storeGameState();
     
-    char wordleStartScreen[] = "FOURDLEFOURDLE";
+    // Reset 4x4 LEDs
+    for (uint8_t i = 0; i < NUM_LEDS; i++) leds4x4[i] = WHITE_C;
+    FastLED.show();
+    
+    char wordleStartScreen[15] = "FOURDLEFOURDLE";
     byte i = 0;
     // Flash title message
     for (i = 0; i < 7; i++) {
@@ -520,9 +550,11 @@ void loop() {
     // Reset 14-segment display
     for(byte i = 0; i < 4; i++) wordBuffer[i] = ' ';
     digitLoc = 0;
+    updateWordDisplay();
     
     // Reset 4x4 LEDs
     for (uint8_t i = 0; i < NUM_LEDS; i++) leds4x4[i] = WHITE_C;
+    FastLED.show();
     
     // Generate a new random word
     prints("Generating random word...\n");
@@ -530,7 +562,9 @@ void loop() {
     strcpy_P(randWord, (PGM_P)pgm_read_word(&(wordBank[randNum])));
     prints("Word Bank Location "); Serial.print(randNum); Serial.print(": ");
     Serial.println(randWord); // print out a random word from the word bank
-    //storeRandWord(); // Store new random word into EEPROM
+    
+    storeRandWord(); // Store new random word into EEPROM
+    
     delay(1000);
 
     GameState = GAME_INPUT_GUESS1;
@@ -538,7 +572,7 @@ void loop() {
   }
 
   else if (GameState == GAME_INPUT_GUESS1) {
-    // storeGameState();
+    storeGameState();
     
     char key = checkKeyboard(CARDKB_ADDR);
     if(key != NULL){ // If the entered key is one of the game keys (alphabet, backspace, etc.)...
@@ -547,14 +581,57 @@ void loop() {
         if(digitLoc > 0){ // and letters were entered...
           playSound(3, 300, 20); //play sound through speaker
           playSound(3, 300, 20);
-          // Delete (replace with whitespace) the previous digit location then decrement the digit location
-          wordBuffer[digitLoc-- - 1] = ' '; 
+          // Delete (replace with whitespace) the previous digit location by first decrementing the digit location
+          wordBuffer[--digitLoc] = ' '; 
+          
+          EEPROM.update(getInputLoc(digitLoc), ' ');
+          delay(4);
         }
+      }
+      else if(key == ','){}
+      else if(key == '.'){ // If the entered key is a space...
+        // Save currently typed letters
+        char tempSave[4];
+        tempSave[0] = wordBuffer[0]; tempSave[1] = wordBuffer[1]; tempSave[2] = wordBuffer[2]; tempSave[3] = wordBuffer[3];
+        // Display the win streak
+        byte winStreak = EEPROM[WIN_STREAK];
+        prints("Win streak: ");
+        Serial.println(winStreak);
+        wordBuffer[0] = 'W'; wordBuffer[1] = 'I'; wordBuffer[2] = 'N'; wordBuffer[3] = 'S';
+        updateWordDisplay();
+        delay(500);
+        
+        byte hundreds = winStreak/100;
+        byte tens = (winStreak - hundreds*100)/10;
+        byte ones = winStreak - hundreds*100 - tens*10;
+        wordBuffer[0] = '0';
+        wordBuffer[1] = hundreds + '0';
+        wordBuffer[2] = tens + '0';
+        wordBuffer[3] = ones + '0';
+        updateWordDisplay();
+        delay(500);
+        
+        // Restore previously typed letters
+        wordBuffer[0] = tempSave[0]; wordBuffer[1] = tempSave[1]; wordBuffer[2] = tempSave[2]; wordBuffer[3] = tempSave[3];
+        //alpha4.writeDisplay();
+      }
+      else if(key == ' '){
+        // Restart game
+        GameState = GAME_START_SCREEN;
+        incrInputLoc();
+        EEPROM.update(WIN_STREAK, 0); // resets win streak
+        delay(4);
       }
       else if(key != 0x0D){ // Else if the enter key wasn't pressed...
         if(digitLoc < 4){ // And if all the digits aren't filled...
           // Add the inputted character into the current digit location then increment the digit location
-          wordBuffer[digitLoc++] = toupper((char)key);
+          wordBuffer[digitLoc] = toupper((char)key);
+          
+          EEPROM.update(getInputLoc(digitLoc), wordBuffer[digitLoc]);
+          delay(4);
+          
+          digitLoc++;
+          
           playSound(3, 900, 95);
         }
       }
@@ -564,7 +641,7 @@ void loop() {
         
         // Store guess into EEPROM
         for (byte i = 0; i < 4; i++) prevWord[0][i] = wordBuffer[i];
-        //storePrevWord();
+        storePrevWord();
         
         // Guess number is 0
         if(isGuessCorrect(0)){
@@ -575,13 +652,19 @@ void loop() {
           GameState = GAME_INPUT_GUESS2;
           prints("Second Guess...\n");
         }
+        
+        // Clear input data in EEPROM to represent current cleared display
+        for(byte loc = 0; loc < 4; loc++) {
+          wordBuffer[loc] = ' ';
+          EEPROM.update(getInputLoc(loc), wordBuffer[loc]);
+          delay(4);
+        }
       }
     }
   }
 
   else if (GameState == GAME_INPUT_GUESS2) {
-    // storeGameState();
-    
+    storeGameState();
     
     char key = checkKeyboard(CARDKB_ADDR);
     if(key != NULL){ // If the entered key is not one of the game keys (alphabet, backspace, etc.)...
@@ -590,14 +673,84 @@ void loop() {
         if(digitLoc > 0){ // and letters were entered...
           playSound(3, 300, 20); //play sound through speaker
           playSound(3, 300, 20);
-          // Delete (replace with whitespace) the previous digit location then decrement the digit location
-          wordBuffer[digitLoc-- - 1] = ' '; 
+          // Delete (replace with whitespace) the previous digit location by first decrementing the digit location
+          wordBuffer[--digitLoc] = ' '; 
+          
+          EEPROM.update(getInputLoc(digitLoc), ' ');
+          delay(4);
         }
+      }
+      else if(key == '.'){ // If the entered key is a space...
+        // Save currently typed letters
+        char tempSave[4];
+        tempSave[0] = wordBuffer[0]; tempSave[1] = wordBuffer[1]; tempSave[2] = wordBuffer[2]; tempSave[3] = wordBuffer[3];
+        // Display the win streak
+        byte winStreak = EEPROM[WIN_STREAK];
+        prints("Win streak: ");
+        Serial.println(winStreak);
+        wordBuffer[0] = 'W'; wordBuffer[1] = 'I'; wordBuffer[2] = 'N'; wordBuffer[3] = 'S';
+        updateWordDisplay();
+        delay(500);
+        
+        byte hundreds = winStreak/100;
+        byte tens = (winStreak - hundreds*100)/10;
+        byte ones = winStreak - hundreds*100 - tens*10;
+        wordBuffer[0] = '0';
+        wordBuffer[1] = hundreds + '0';
+        wordBuffer[2] = tens + '0';
+        wordBuffer[3] = ones + '0';
+        updateWordDisplay();
+        delay(500);
+        
+        // Restore previously typed letters
+        wordBuffer[0] = tempSave[0]; wordBuffer[1] = tempSave[1]; wordBuffer[2] = tempSave[2]; wordBuffer[3] = tempSave[3];
+        //alpha4.writeDisplay();
+      }
+      else if(key == ','){
+        // Save currently typed letters
+        char tempSave[4];
+        tempSave[0] = wordBuffer[0]; tempSave[1] = wordBuffer[1]; tempSave[2] = wordBuffer[2]; tempSave[3] = wordBuffer[3];
+        
+        // Save LED values
+        CRGB colors[16];
+        for(byte cIter = 0; cIter < 16; cIter++) colors[cIter] = leds4x4[cIter];
+        
+        // Showing guess 1
+        for(byte i = 0; i < 4; i++){
+          // Show the 1st previous word
+          wordBuffer[i] = prevWord[0][i];
+          // Highlight leds of previous word
+          leds4x4[4 + i] = BLACK_C;
+          leds4x4[8 + i] = BLACK_C;
+          leds4x4[12 + i] = BLACK_C;
+        }
+        updateWordDisplay();
+        FastLED.show();
+        delay(500);
+        
+        // Restore previously typed letters
+        wordBuffer[0] = tempSave[0]; wordBuffer[1] = tempSave[1]; wordBuffer[2] = tempSave[2]; wordBuffer[3] = tempSave[3];
+        // Restore previous led values
+        for(byte cIter = 0; cIter < 16; cIter++) leds4x4[cIter] = colors[cIter];
+        //alpha4.writeDisplay();
+      }
+      else if(key == ' '){
+        // Restart game
+        GameState = GAME_START_SCREEN;
+        incrInputLoc();
+        EEPROM.update(WIN_STREAK, 0); // resets win streak
+        delay(4);
       }
       else if(key != 0x0D){ // Else if the enter key wasn't pressed...
         if(digitLoc < 4){ // And if all the digits aren't filled...
           // Add the inputted character into the current digit location then increment the digit location
-          wordBuffer[digitLoc++] = toupper((char)key);
+          wordBuffer[digitLoc] = toupper((char)key);
+          
+          EEPROM.update(getInputLoc(digitLoc), wordBuffer[digitLoc]);
+          delay(4);
+          
+          digitLoc++;
+          
           playSound(3, 900, 95);
         }
       }
@@ -607,7 +760,7 @@ void loop() {
         
         // Store guess into EEPROM
         for (byte i = 0; i < 4; i++) prevWord[1][i] = wordBuffer[i];
-        //storePrevWord();
+        storePrevWord();
         
         // Guess number is 1
         if(isGuessCorrect(1)){
@@ -618,14 +771,20 @@ void loop() {
           GameState = GAME_INPUT_GUESS3;
           prints("Third Guess...\n");
         }
+        
+        // Clear input data in EEPROM to represent current cleared display
+        for(byte loc = 0; loc < 4; loc++) {
+          wordBuffer[loc] = ' ';
+          EEPROM.update(getInputLoc(loc), wordBuffer[loc]);
+          delay(4);
+        }
       }
     }
   }
 
   else if (GameState == GAME_INPUT_GUESS3) {
-    // storeGameState();
-    
-    
+    storeGameState();
+
     char key = checkKeyboard(CARDKB_ADDR);
     if(key != NULL){ // If the entered key is not one of the game keys (alphabet, backspace, etc.)...
       enableDisplayLEDs();
@@ -633,14 +792,98 @@ void loop() {
         if(digitLoc > 0){ // and letters were entered...
           playSound(3, 300, 20); //play sound through speaker
           playSound(3, 300, 20);
-          // Delete (replace with whitespace) the previous digit location then decrement the digit location
-          wordBuffer[digitLoc-- - 1] = ' '; 
+          // Delete (replace with whitespace) the previous digit location by first decrementing the digit location
+          wordBuffer[--digitLoc] = ' '; 
+          
+          EEPROM.update(getInputLoc(digitLoc), ' ');
+          delay(4);
         }
+      }
+      else if(key == '.'){ // If the entered key is a space...
+        // Save currently typed letters
+        char tempSave[4];
+        tempSave[0] = wordBuffer[0]; tempSave[1] = wordBuffer[1]; tempSave[2] = wordBuffer[2]; tempSave[3] = wordBuffer[3];
+        // Display the win streak
+        byte winStreak = EEPROM[WIN_STREAK];
+        prints("Win streak: ");
+        Serial.println(winStreak);
+        wordBuffer[0] = 'W'; wordBuffer[1] = 'I'; wordBuffer[2] = 'N'; wordBuffer[3] = 'S';
+        updateWordDisplay();
+        delay(500);
+        
+        byte hundreds = winStreak/100;
+        byte tens = (winStreak - hundreds*100)/10;
+        byte ones = winStreak - hundreds*100 - tens*10;
+        wordBuffer[0] = '0';
+        wordBuffer[1] = hundreds + '0';
+        wordBuffer[2] = tens + '0';
+        wordBuffer[3] = ones + '0';
+        updateWordDisplay();
+        delay(500);
+        
+        // Restore previously typed letters
+        wordBuffer[0] = tempSave[0]; wordBuffer[1] = tempSave[1]; wordBuffer[2] = tempSave[2]; wordBuffer[3] = tempSave[3];
+        //alpha4.writeDisplay();
+      }
+      else if(key == ','){
+        // Save currently typed letters
+        char tempSave[4];
+        tempSave[0] = wordBuffer[0]; tempSave[1] = wordBuffer[1]; tempSave[2] = wordBuffer[2]; tempSave[3] = wordBuffer[3];
+        
+        // Save LED values
+        CRGB colors[16];
+        for(byte cIter = 0; cIter < 16; cIter++) colors[cIter] = leds4x4[cIter];
+        
+        // Showing guess 1
+        for(byte i = 0; i < 4; i++){
+          // Show the 1st previous word
+          wordBuffer[i] = prevWord[0][i];
+          // Highlight leds of previous word
+          leds4x4[4 + i] = BLACK_C;
+          leds4x4[8 + i] = BLACK_C;
+          leds4x4[12 + i] = BLACK_C;
+        }
+        updateWordDisplay();
+        FastLED.show();
+        delay(500);
+        
+        // Showing guess 2
+        for(byte i = 0; i < 4; i++){
+          // Show the 1st previous word
+          wordBuffer[i] = prevWord[1][i];
+          // Highlight leds of previous word
+          leds4x4[0 + i] = BLACK_C;
+          leds4x4[4 + i] = colors[4 + i];
+          leds4x4[8 + i] = BLACK_C;
+          leds4x4[12 + i] = BLACK_C;
+        }
+        updateWordDisplay();
+        FastLED.show();
+        delay(500);
+        
+        // Restore previously typed letters
+        wordBuffer[0] = tempSave[0]; wordBuffer[1] = tempSave[1]; wordBuffer[2] = tempSave[2]; wordBuffer[3] = tempSave[3];
+        // Restore previous led values
+        for(byte cIter = 0; cIter < 16; cIter++) leds4x4[cIter] = colors[cIter];
+        //alpha4.writeDisplay();
+      }
+      else if(key == ' '){
+        // Restart game
+        GameState = GAME_START_SCREEN;
+        incrInputLoc();
+        EEPROM.update(WIN_STREAK, 0); // resets win streak
+        delay(4);
       }
       else if(key != 0x0D){ // Else if the enter key wasn't pressed...
         if(digitLoc < 4){ // And if all the digits aren't filled...
           // Add the inputted character into the current digit location then increment the digit location
-          wordBuffer[digitLoc++] = toupper((char)key);
+          wordBuffer[digitLoc] = toupper((char)key);
+          
+          EEPROM.update(getInputLoc(digitLoc), wordBuffer[digitLoc]);
+          delay(4);
+          
+          digitLoc++;
+          
           playSound(3, 900, 95);
         }
       }
@@ -650,7 +893,7 @@ void loop() {
         
         // Store guess into EEPROM
         for (byte i = 0; i < 4; i++) prevWord[2][i] = wordBuffer[i];
-        //storePrevWord();
+        storePrevWord();
         
         // Guess number is 2
         if(isGuessCorrect(2)){
@@ -661,13 +904,19 @@ void loop() {
           GameState = GAME_INPUT_GUESS4;
           prints("Last Guess...\n");
         }
+        
+        // Clear input data in EEPROM to represent current cleared display
+        for(byte loc = 0; loc < 4; loc++) {
+          wordBuffer[loc] = ' ';
+          EEPROM.update(getInputLoc(loc), wordBuffer[loc]);
+          delay(4);
+        }
       }
     }
   }
 
   else if (GameState == GAME_INPUT_GUESS4) {
-    // storeGameState();
-    
+    storeGameState();
     
     char key = checkKeyboard(CARDKB_ADDR);
     if(key != NULL){ // If the entered key is not one of the game keys (alphabet, backspace, etc.)...
@@ -676,14 +925,112 @@ void loop() {
         if(digitLoc > 0){ // and letters were entered...
           playSound(3, 300, 20); //play sound through speaker
           playSound(3, 300, 20);
-          // Delete (replace with whitespace) the previous digit location then decrement the digit location
-          wordBuffer[digitLoc-- - 1] = ' '; 
+          // Delete (replace with whitespace) the previous digit location by first decrementing the digit location
+          wordBuffer[--digitLoc] = ' '; 
+          
+          EEPROM.update(getInputLoc(digitLoc), ' ');
+          delay(4);
         }
+      }
+      else if(key == '.'){ // If the entered key is a space...
+        // Save currently typed letters
+        char tempSave[4];
+        tempSave[0] = wordBuffer[0]; tempSave[1] = wordBuffer[1]; tempSave[2] = wordBuffer[2]; tempSave[3] = wordBuffer[3];
+        // Display the win streak
+        byte winStreak = EEPROM[WIN_STREAK];
+        prints("Win streak: ");
+        Serial.println(winStreak);
+        wordBuffer[0] = 'W'; wordBuffer[1] = 'I'; wordBuffer[2] = 'N'; wordBuffer[3] = 'S';
+        updateWordDisplay();
+        delay(500);
+        
+        byte hundreds = winStreak/100;
+        byte tens = (winStreak - hundreds*100)/10;
+        byte ones = winStreak - hundreds*100 - tens*10;
+        wordBuffer[0] = '0';
+        wordBuffer[1] = hundreds + '0';
+        wordBuffer[2] = tens + '0';
+        wordBuffer[3] = ones + '0';
+        updateWordDisplay();
+        delay(500);
+        
+        // Restore previously typed letters
+        wordBuffer[0] = tempSave[0]; wordBuffer[1] = tempSave[1]; wordBuffer[2] = tempSave[2]; wordBuffer[3] = tempSave[3];
+        //alpha4.writeDisplay();
+      }
+      else if(key == ','){
+        // Save currently typed letters
+        char tempSave[4];
+        tempSave[0] = wordBuffer[0]; tempSave[1] = wordBuffer[1]; tempSave[2] = wordBuffer[2]; tempSave[3] = wordBuffer[3];
+        
+        // Save LED values
+        CRGB colors[16];
+        for(byte cIter = 0; cIter < 16; cIter++) colors[cIter] = leds4x4[cIter];
+        
+        // Showing guess 1
+        for(byte i = 0; i < 4; i++){
+          // Show the 1st previous word
+          wordBuffer[i] = prevWord[0][i];
+          // Highlight leds of previous word
+          leds4x4[4 + i] = BLACK_C;
+          leds4x4[8 + i] = BLACK_C;
+          leds4x4[12 + i] = BLACK_C;
+        }
+        updateWordDisplay();
+        FastLED.show();
+        delay(500);
+        
+        // Showing guess 2
+        for(byte i = 0; i < 4; i++){
+          // Show the 1st previous word
+          wordBuffer[i] = prevWord[1][i];
+          // Highlight leds of previous word
+          leds4x4[0 + i] = BLACK_C;
+          leds4x4[4 + i] = colors[4 + i];
+          leds4x4[8 + i] = BLACK_C;
+          leds4x4[12 + i] = BLACK_C;
+        }
+        updateWordDisplay();
+        FastLED.show();
+        delay(500);
+        
+        // Showing guess 3
+        for(byte i = 0; i < 4; i++){
+          // Show the 1st previous word
+          wordBuffer[i] = prevWord[2][i];
+          // Highlight leds of previous word
+          leds4x4[0 + i] = BLACK_C;
+          leds4x4[4 + i] = BLACK_C;
+          leds4x4[8 + i] = colors[8 + i];
+          leds4x4[12 + i] = BLACK_C;
+        }
+        updateWordDisplay();
+        FastLED.show();
+        delay(500);
+        
+        // Restore previously typed letters
+        wordBuffer[0] = tempSave[0]; wordBuffer[1] = tempSave[1]; wordBuffer[2] = tempSave[2]; wordBuffer[3] = tempSave[3];
+        // Restore previous led values
+        for(byte cIter = 0; cIter < 16; cIter++) leds4x4[cIter] = colors[cIter];
+        //alpha4.writeDisplay();
+      }
+      else if(key == ' '){
+        // Restart game
+        GameState = GAME_START_SCREEN;
+        incrInputLoc();
+        EEPROM.update(WIN_STREAK, 0); // resets win streak
+        delay(4);
       }
       else if(key != 0x0D){ // Else if the enter key wasn't pressed...
         if(digitLoc < 4){ // And if all the digits aren't filled...
           // Add the inputted character into the current digit location then increment the digit location
-          wordBuffer[digitLoc++] = toupper((char)key);
+          wordBuffer[digitLoc] = toupper((char)key);
+          
+          EEPROM.update(getInputLoc(digitLoc), wordBuffer[digitLoc]);
+          delay(4);
+          
+          digitLoc++;
+          
           playSound(3, 900, 95);
         }
       }
@@ -693,7 +1040,7 @@ void loop() {
         
         // Store guess into EEPROM
         for (byte i = 0; i < 4; i++) prevWord[3][i] = wordBuffer[i];
-        //storePrevWord();
+        storePrevWord();
         
         GameState = GAME_END_SCREEN;
         
@@ -704,53 +1051,66 @@ void loop() {
         else{
           win = false;
         }
+        
+        // Clear input data in EEPROM to represent current cleared display
+        for(byte loc = 0; loc < 4; loc++) {
+          wordBuffer[loc] = ' ';
+          EEPROM.update(getInputLoc(loc), wordBuffer[loc]);
+          delay(4);
+        }
       }
     }
   }
 
   else if (GameState == GAME_END_SCREEN) {
-    // storeGameState();
+    storeGameState();
     
     if(win){
-      //prints("You Win!\n");
-      wordBuffer[0] = 'W'; wordBuffer[1] = 'I'; wordBuffer[2] = 'N'; wordBuffer[3] = ' '; 
-      //enableDisplayLEDs();
+      wordBuffer[0] = 'Y'; wordBuffer[1] = 'O'; wordBuffer[2] = 'U'; wordBuffer[3] = ' '; 
+      updateWordDisplay();
+      playSound(3, 1098, 50); //play sound through speaker
+      playSound(3, 1250, 95);
+      delay(500);
       
-      // Increment the win streak
-      //EEPROM.update(WIN_STREAK, EEPROM[WIN_STREAK] + 1);
+      wordBuffer[0] = ' '; wordBuffer[1] = 'W'; wordBuffer[2] = 'I'; wordBuffer[3] = 'N'; 
+      updateWordDisplay();
+      playSound(3, 1123, 50); //play sound through speaker
+      playSound(3, 1320, 95);
+      delay(500);
     }
     else{
-      //prints("You Lose!\n");
       wordBuffer[0] = 'L'; wordBuffer[1] = 'O'; wordBuffer[2] = 'S'; wordBuffer[3] = 'E'; 
-      //enableDisplayLEDs();
-      // Set win streak to 0
-      //EEPROM.update(WIN_STREAK, 0);
+      updateWordDisplay();
+      playSound(3, 800, 100); //play sound through speaker
+      delay(500);
+      
+      for(byte i=0; i < 4; i++) wordBuffer[i] = randWord[i];
+      updateWordDisplay();
+      playSound(3, 1098, 100); //play sound through speaker
+      delay(500);
     }
     
-    // Shifts input location in EEPROM to next 4 bytes so writes across EEPROM are saturated (only 100,000 writes/byte location)
-    //incrInputLoc();
-    
-    // Stall program until input is received
-    //while(checkKeyboard(CARDKB_ADDR) == NULL){}
     // Return FSM back to the game start
-    if(checkKeyboard(CARDKB_ADDR) == NULL){
+    if(checkKeyboard(CARDKB_ADDR) != NULL){
+      // Shifts input location in EEPROM to next 4 bytes so writes across EEPROM are saturated (only 100,000 writes/byte location)
+      incrInputLoc();
+      
       enableDisplayLEDs();
       GameState = GAME_BEGIN_PLAY;
+      // Increment the win streak if win
+      if(win) EEPROM.update(WIN_STREAK, EEPROM[WIN_STREAK] + 1);
+      // Set win streak to 0 if lose
+      else EEPROM.update(WIN_STREAK, 0);
     }
   }
 
-  else prints("ERROR: I should not be here. Game State Error.\n");
+  else {
+    prints("ERROR: I should not be here. Game State Error. Resetting Game State to Title Screen.\n");
+    GameState = GAME_START_SCREEN;
+  }
   //------------------------------------------//
   //  END FINITE STATE MACHINE FOR GAME LOGIC //
   //------------------------------------------//
-  //prints("HERE!!\n");
-
-  // --Random word generator test-- //
-  // int randNum = random(BANK_SIZE);
-  // strcpy_P(randWord, (PGM_P)pgm_read_word(&(wordBank[randNum])));
-  // Serial.print(randNum); Serial.print(": ");
-  // Serial.print(randWord); // print out a random word from the word bank
-  // Serial.println();
 }
 
 // INTERUPT FUNCTIONS //
@@ -768,8 +1128,8 @@ inline void enableDisplayLEDs(void) {
   DisplayFlags = ON_DISPLAYS;
   RTCAVRZero.disableAlarm();
 
-  // Set alarm to dim displays after 10 seconds
-  RTCAVRZero.enableAlarm(5, false);
+  // Set alarm to dim displays after 60 seconds
+  RTCAVRZero.enableAlarm(60, false);
   RTCAVRZero.attachInterrupt(dimDisplayLEDs);
 }
 
@@ -778,8 +1138,8 @@ inline void dimDisplayLEDs(void) {
   DisplayFlags = DIM_DISPLAYS;
   RTCAVRZero.disableAlarm();
 
-  // Set alarm to turn off displays after 10 seconds
-  RTCAVRZero.enableAlarm(5, false);
+  // Set alarm to turn off displays after 60 seconds
+  RTCAVRZero.enableAlarm(60, false);
   RTCAVRZero.attachInterrupt(disableDisplayLEDs);
 }
 
